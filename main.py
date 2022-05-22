@@ -2,11 +2,11 @@ from kivy.config import Config
 Config.set('graphics', 'width', '900')
 Config.set('graphics', 'height', '400')
 
+from kivy import platform
 from kivy.app import App
 from kivy.core.window import Window
-from kivy.graphics.vertex_instructions import Ellipse, Line
+from kivy.graphics.vertex_instructions import Line
 from kivy.graphics.context_instructions import Color
-from kivy.metrics import dp
 from kivy.properties import NumericProperty
 from kivy.uix.widget import Widget
 from kivy.properties import Clock
@@ -29,27 +29,53 @@ class MainWidget(Widget):
     current_offset_y = 0.
 
     SPEED_X = 15
-    vel_x = 0
+    current_speed_x = 0
     current_offset_x = 0.
 
     FPS = 60.
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        print(f"INIT W: {self.width} H: {self.height}")
+
         self.init_vertical_lines()
         self.init_horizontal_lines()
-        Clock.schedule_interval(self.update, 1./self.FPS)
+
+        if self.is_desktop():
+            self._keyboard = Window.request_keyboard(
+                self.keyboard_closed,
+                self
+            )
+            self._keyboard.bind(on_key_down=self.on_keyboard_down)
+            self._keyboard.bind(on_key_up=self.on_keyboard_up)
+
+        Clock.schedule_interval(self.update, 1. / self.FPS)
 
     def on_parent(self, widget, parent):
         pass
 
     def on_size(self, *args):
-        # self.perspective_point_x = 0.5 * self.width
-        # self.perspective_point_y = 0.75 * self.height
-        # self.update_vertical_lines()
-        # self.update_horizontal_lines()
         pass
+
+    def keyboard_closed(self):
+        self._keyboard.unbind(on_key_down=self.on_keyboard_down)
+        self._keyboard.unbind(on_key_up=self.on_keyboard_up)
+        self._keyboard = None
+
+    def is_desktop(self):
+        if platform in ('linux', 'win', 'macosx'):
+            return True
+        return False
+
+    def on_keyboard_down(self, keyboard, keycode, text, modifiers):
+        if keycode[1] == 'left':
+            self.current_speed_x = - self.SPEED_X
+        elif keycode[1] == 'right':
+            self.current_speed_x = + self.SPEED_X
+        return True
+
+    def on_keyboard_up(self, keyboard, keycode):
+        self.current_speed_x = 0
+        return True
 
     def on_perspective_point_x(self, widget, value):
         print(f"PX: {value}")
@@ -67,11 +93,11 @@ class MainWidget(Widget):
         with self.canvas:
             spacing = self.V_LINES_SPACING * self.width
             central_line_x = self.width / 2
-            offset = -int((self.V_NB_LINES)/2) + 0.5
+            offset = -int((self.V_NB_LINES) / 2) + 0.5
 
             for i, vertical_line in enumerate(self.vertical_lines):
-                line_x = int(central_line_x + offset*spacing
-                    + self.current_offset_x)
+                line_x = int(central_line_x + offset * spacing
+                             + self.current_offset_x)
                 x1, y1 = self.transform(line_x, 0)
                 x2, y2 = self.transform(line_x, self.height)
                 vertical_line.points = [x1, y1, x2, y2]
@@ -86,7 +112,7 @@ class MainWidget(Widget):
     def update_horizontal_lines(self):
         spacing_x = self.V_LINES_SPACING * self.width
         central_line_x = self.width / 2
-        offset = -int((self.V_NB_LINES)/2) + 0.5
+        offset = -int((self.V_NB_LINES) / 2) + 0.5
 
         xmin = central_line_x + offset * spacing_x + self.current_offset_x
         xmax = central_line_x - offset * spacing_x + self.current_offset_x
@@ -116,16 +142,16 @@ class MainWidget(Widget):
             + self.perspective_point_x
 
         return int(x_new), int(y_new)
-    
+
     def on_touch_down(self, touch):
         if touch.x < self.width / 2:
-            self.vel_x = - self.SPEED_X
+            self.current_speed_x = - self.SPEED_X
         else:
-            self.vel_x = self.SPEED_X
+            self.current_speed_x = self.SPEED_X
 
     def on_touch_up(self, touch):
-        self.vel_x = 0.
-    
+        self.current_speed_x = 0.
+
     def update(self, dt):
         print(f"dt: {dt:.3f} - {1./60:.3f}")
         time_factor = dt * self.FPS
@@ -134,7 +160,7 @@ class MainWidget(Widget):
         spacing_y = self.H_LINES_SPACING * self.height
         self.current_offset_y %= spacing_y
 
-        self.current_offset_x -= self.vel_x * time_factor
+        self.current_offset_x -= self.current_speed_x * time_factor
 
         self.update_vertical_lines()
         self.update_horizontal_lines()
