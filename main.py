@@ -12,12 +12,18 @@ class MainWidget(Widget):
 
     V_NB_LINES = 4
     V_LINES_SPACING = 0.1       # percentage in screen width
+
+    H_NB_LINES = 10
+    H_LINES_SPACING = 0.1
+
     vertical_lines = []
+    horizontal_lines = []
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print(f"INIT W: {self.width} H: {self.height}")
         self.init_vertical_lines()
+        self.init_horizontal_lines()
 
     def on_parent(self, widget, parent):
         pass
@@ -26,6 +32,7 @@ class MainWidget(Widget):
         # self.perspective_point_x = 0.5 * self.width
         # self.perspective_point_y = 0.75 * self.height
         self.update_vertical_lines()
+        self.update_horizontal_lines()
 
     def on_perspective_point_x(self, widget, value):
         print(f"PX: {value}")
@@ -43,14 +50,37 @@ class MainWidget(Widget):
         with self.canvas:
             spacing = self.V_LINES_SPACING * self.width
             central_line_x = self.width / 2
-            offset = -(self.V_NB_LINES - 1)/2
+            offset = -int((self.V_NB_LINES)/2) + 0.5
 
             for i, vertical_line in enumerate(self.vertical_lines):
                 line_x = int(central_line_x + offset*spacing)
-                x1, y1 = self.transform(line_x, 0)
+                x1, y1 = self.transform(line_x, 0.2*self.height)
                 x2, y2 = self.transform(line_x, self.height)
                 vertical_line.points = [x1, y1, x2, y2]
                 offset += 1
+
+    def init_horizontal_lines(self):
+        with self.canvas:
+            Color(1, 1, 1)
+            for _ in range(self.H_NB_LINES):
+                self.horizontal_lines.append(Line())
+
+    def update_horizontal_lines(self):
+        spacing_x = self.V_LINES_SPACING * self.width
+        central_line_x = self.width / 2
+        offset = -int((self.V_NB_LINES)/2) + 0.5
+
+        xmin = central_line_x + offset * spacing_x
+        xmax = central_line_x - offset * spacing_x
+
+        with self.canvas:
+            spacing_y = self.H_LINES_SPACING * self.height
+
+            for i, horizontal_line in enumerate(self.horizontal_lines):
+                line_y = i * spacing_y
+                x1, y1 = self.transform(xmin, line_y)
+                x2, y2 = self.transform(xmax, line_y)
+                horizontal_line.points = [x1, y1, x2, y2]
 
     def transform(self, x, y):
         # return self.transform_2D(x, y)
