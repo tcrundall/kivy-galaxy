@@ -1,4 +1,9 @@
+from kivy.config import Config
+Config.set('graphics', 'width', '900')
+Config.set('graphics', 'height', '400')
+
 from kivy.app import App
+from kivy.core.window import Window
 from kivy.graphics.vertex_instructions import Ellipse, Line
 from kivy.graphics.context_instructions import Color
 from kivy.metrics import dp
@@ -23,12 +28,18 @@ class MainWidget(Widget):
     SPEED = 2
     current_offset_y = 0.
 
+    SPEED_X = 15
+    vel_x = 0
+    current_offset_x = 0.
+
+    FPS = 60.
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print(f"INIT W: {self.width} H: {self.height}")
         self.init_vertical_lines()
         self.init_horizontal_lines()
-        Clock.schedule_interval(self.update, 1./60)
+        Clock.schedule_interval(self.update, 1./self.FPS)
 
     def on_parent(self, widget, parent):
         pass
@@ -59,7 +70,8 @@ class MainWidget(Widget):
             offset = -int((self.V_NB_LINES)/2) + 0.5
 
             for i, vertical_line in enumerate(self.vertical_lines):
-                line_x = int(central_line_x + offset*spacing)
+                line_x = int(central_line_x + offset*spacing
+                    + self.current_offset_x)
                 x1, y1 = self.transform(line_x, 0)
                 x2, y2 = self.transform(line_x, self.height)
                 vertical_line.points = [x1, y1, x2, y2]
@@ -76,8 +88,8 @@ class MainWidget(Widget):
         central_line_x = self.width / 2
         offset = -int((self.V_NB_LINES)/2) + 0.5
 
-        xmin = central_line_x + offset * spacing_x
-        xmax = central_line_x - offset * spacing_x
+        xmin = central_line_x + offset * spacing_x + self.current_offset_x
+        xmax = central_line_x - offset * spacing_x + self.current_offset_x
 
         with self.canvas:
             spacing_y = self.H_LINES_SPACING * self.height
@@ -93,7 +105,7 @@ class MainWidget(Widget):
         return self.transform_perspective(x, y)
 
     def transform_2D(sefl, x, y):
-        return x, y
+        return int(x), int(y)
 
     def transform_perspective(self, x, y):
         y_scale = 1 - pow(1 - (y / self.height), 4)
@@ -103,16 +115,27 @@ class MainWidget(Widget):
         x_new = (x - self.perspective_point_x) * x_scale \
             + self.perspective_point_x
 
-        return (x_new, y_new)
+        return int(x_new), int(y_new)
+    
+    def on_touch_down(self, touch):
+        if touch.x < self.width / 2:
+            self.vel_x = - self.SPEED_X
+        else:
+            self.vel_x = self.SPEED_X
+
+    def on_touch_up(self, touch):
+        self.vel_x = 0.
     
     def update(self, dt):
-        print("Updating")
-        print(f"Offset: {self.current_offset_y}, speed: {self.SPEED}")
-        # self.current_offset_y = (self.current_offset_y - self.SPEED) % self.H_LINES_SPACING
-        self.current_offset_y -= self.SPEED
+        print(f"dt: {dt:.3f} - {1./60:.3f}")
+        time_factor = dt * self.FPS
+        print(f"time factor: {time_factor}")
+        self.current_offset_y -= self.SPEED * time_factor
         spacing_y = self.H_LINES_SPACING * self.height
         self.current_offset_y %= spacing_y
-        print(f"Result: {self.current_offset_y}")
+
+        self.current_offset_x -= self.vel_x * time_factor
+
         self.update_vertical_lines()
         self.update_horizontal_lines()
 
