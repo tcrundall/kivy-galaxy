@@ -5,11 +5,13 @@ Config.set('graphics', 'height', '400')
 from kivy import platform
 from kivy.app import App
 from kivy.core.window import Window
-from kivy.graphics.vertex_instructions import Line
+from kivy.graphics.vertex_instructions import Line, Mesh, Quad
 from kivy.graphics.context_instructions import Color
 from kivy.properties import NumericProperty
 from kivy.uix.widget import Widget
 from kivy.properties import Clock
+
+from itertools import chain
 
 
 class MainWidget(Widget):
@@ -18,17 +20,17 @@ class MainWidget(Widget):
     perspective_point_x = NumericProperty(0)
     perspective_point_y = NumericProperty(0)
 
-    V_NB_LINES = 10
-    V_LINES_SPACING = 0.25       # percentage in screen width
+    V_NB_LINES = 7
+    V_LINES_SPACING = 0.1       # percentage in screen width
+    vertical_lines = []
 
     H_NB_LINES = 20
-    H_LINES_SPACING = 1. / H_NB_LINES
-
-    vertical_lines = []
+    H_LINES_SPACING = 1. / (H_NB_LINES - 1)
     horizontal_lines = []
 
-    SPEED = 2
+    SPEED = 0.1
     current_offset_y = 0.
+    current_y_progress = 0
 
     SPEED_X = 15
     current_speed_x = 0
@@ -36,11 +38,14 @@ class MainWidget(Widget):
 
     FPS = 60.
 
+    tiles = []
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         self.init_vertical_lines()
         self.init_horizontal_lines()
+        self.init_tiles()
 
         if self.is_desktop():
             self._keyboard = Window.request_keyboard(
@@ -52,22 +57,10 @@ class MainWidget(Widget):
 
         Clock.schedule_interval(self.update, 1. / self.FPS)
 
-    def on_parent(self, widget, parent):
-        pass
-
-    def on_size(self, *args):
-        pass
-
     def is_desktop(self):
         if platform in ('linux', 'win', 'macosx'):
             return True
         return False
-
-    def on_perspective_point_x(self, widget, value):
-        print(f"PX: {value}")
-
-    def on_perspective_point_y(self, widget, value):
-        print(f"PY: {value}")
 
     def init_vertical_lines(self):
         with self.canvas:
@@ -75,19 +68,21 @@ class MainWidget(Widget):
             for _ in range(self.V_NB_LINES):
                 self.vertical_lines.append(Line())
 
-    def update_vertical_lines(self):
-        with self.canvas:
-            spacing = self.V_LINES_SPACING * self.width
-            central_line_x = self.width / 2
-            offset = -int((self.V_NB_LINES) / 2) + 0.5
+    def get_line_x_from_index(self, index):
+        central_line_x = self.perspective_point_x
+        spacing_x = self.V_LINES_SPACING * self.width
+        x_diff = (index - 0.5) * spacing_x
+        return central_line_x + x_diff + self.current_offset_x
 
-            for i, vertical_line in enumerate(self.vertical_lines):
-                line_x = int(central_line_x + offset * spacing
-                             + self.current_offset_x)
-                x1, y1 = self.transform(line_x, 0)
-                x2, y2 = self.transform(line_x, self.height)
-                vertical_line.points = [x1, y1, x2, y2]
-                offset += 1
+    def update_vertical_lines(self):
+        # -1, 0, 1, 2
+        # -2, -1, 0, 1, 2
+        start_ix = -int((self.V_NB_LINES - 1) / 2)
+        for i in range(start_ix, start_ix + self.V_NB_LINES):
+            line_x = self.get_line_x_from_index(i)
+            x1, y1 = self.transform(line_x, 0)
+            x2, y2 = self.transform(line_x, self.height)
+            self.vertical_lines[i].points = [x1, y1, x2, y2]
 
     def init_horizontal_lines(self):
         with self.canvas:
@@ -96,38 +91,73 @@ class MainWidget(Widget):
                 self.horizontal_lines.append(Line())
 
     def update_horizontal_lines(self):
-        spacing_x = self.V_LINES_SPACING * self.width
-        central_line_x = self.width / 2
-        offset = -int((self.V_NB_LINES) / 2) + 0.5
+        start_ix = -int((self.V_NB_LINES - 1) / 2)
+        end_ix = start_ix + self.V_NB_LINES
 
-        xmin = central_line_x + offset * spacing_x + self.current_offset_x
-        xmax = central_line_x - offset * spacing_x + self.current_offset_x
+        xmin = self.get_line_x_from_index(start_ix)
+        xmax = self.get_line_x_from_index(end_ix - 1)
 
         with self.canvas:
-            spacing_y = self.H_LINES_SPACING * self.height
-
             for i, horizontal_line in enumerate(self.horizontal_lines):
-                line_y = i * spacing_y + self.current_offset_y
+                line_y = self.get_line_y_from_index(i)
                 x1, y1 = self.transform(xmin, line_y)
                 x2, y2 = self.transform(xmax, line_y)
                 horizontal_line.points = [x1, y1, x2, y2]
 
+    def init_tiles(self):
+        with self.canvas:
+            Color(1, 1, 1)
+            for _ in range(4):
+                self.tiles.append(Quad())
+
+    def update_tiles(self):
+        tile_coords = [(0,0), (1,5), (2,7), (-2,2)]
+        for tile, (x, y) in zip(self.tiles, tile_coords):
+            # x1, y1, x2, y2, x3, y3, x4, y4
+            bl = (
+                self.get_line_x_from_index(x),
+                self.get_line_y_from_index(y, move=True),
+            )
+            tr = (
+                self.get_line_x_from_index(x+1),
+                self.get_line_y_from_index(y+1, move=True),
+            )
+            points = [
+                bl,
+                (bl[0], tr[1]),
+                tr,
+                (tr[0], bl[1]),
+            ]
+            tr_points = [list(self.transform(px, py)) for px, py in points]
+            tile.points = list(chain(*tr_points))
+
     def update(self, dt):
-        print(f"dt: {dt:.3f} - {1./60:.3f}")
         time_factor = dt * self.FPS
-        print(f"time factor: {time_factor}")
-        self.current_offset_y -= self.SPEED * time_factor
+        self.update_vertical_lines()
+        self.update_horizontal_lines()
+        self.update_tiles()
+
+        self.current_offset_y += self.SPEED * time_factor
+
         spacing_y = self.H_LINES_SPACING * self.height
-        self.current_offset_y %= spacing_y
+        if self.current_offset_y >= spacing_y:
+            self.current_offset_y -= spacing_y
+            self.current_y_progress += 1
+            print(self.current_y_progress)
+        # self.current_offset_y %= spacing_y
 
         self.current_offset_x -= self.current_speed_x * time_factor
 
-        self.update_vertical_lines()
-        self.update_horizontal_lines()
+    def get_line_y_from_index(self, index, move=False):
+        spacing_y = self.H_LINES_SPACING * self.height
+        if move:
+            index -= self.current_y_progress
+        return index * spacing_y - self.current_offset_y
 
 
 class GalaxyApp(App):
     pass
 
 
-GalaxyApp().run()
+if __name__ == '__main__':
+    GalaxyApp().run()
