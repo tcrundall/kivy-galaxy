@@ -13,6 +13,8 @@ from kivy.properties import Clock
 
 
 class MainWidget(Widget):
+    from transforms import transform, transform_2D, transform_perspective
+    from user_actions import on_keyboard_up, on_keyboard_down, on_touch_up, on_touch_down, keyboard_closed
     perspective_point_x = NumericProperty(0)
     perspective_point_y = NumericProperty(0)
 
@@ -56,26 +58,10 @@ class MainWidget(Widget):
     def on_size(self, *args):
         pass
 
-    def keyboard_closed(self):
-        self._keyboard.unbind(on_key_down=self.on_keyboard_down)
-        self._keyboard.unbind(on_key_up=self.on_keyboard_up)
-        self._keyboard = None
-
     def is_desktop(self):
         if platform in ('linux', 'win', 'macosx'):
             return True
         return False
-
-    def on_keyboard_down(self, keyboard, keycode, text, modifiers):
-        if keycode[1] == 'left':
-            self.current_speed_x = - self.SPEED_X
-        elif keycode[1] == 'right':
-            self.current_speed_x = + self.SPEED_X
-        return True
-
-    def on_keyboard_up(self, keyboard, keycode):
-        self.current_speed_x = 0
-        return True
 
     def on_perspective_point_x(self, widget, value):
         print(f"PX: {value}")
@@ -125,32 +111,6 @@ class MainWidget(Widget):
                 x1, y1 = self.transform(xmin, line_y)
                 x2, y2 = self.transform(xmax, line_y)
                 horizontal_line.points = [x1, y1, x2, y2]
-
-    def transform(self, x, y):
-        # return self.transform_2D(x, y)
-        return self.transform_perspective(x, y)
-
-    def transform_2D(sefl, x, y):
-        return int(x), int(y)
-
-    def transform_perspective(self, x, y):
-        y_scale = 1 - pow(1 - (y / self.height), 4)
-        x_scale = 1 - y_scale
-
-        y_new = self.perspective_point_y * y_scale
-        x_new = (x - self.perspective_point_x) * x_scale \
-            + self.perspective_point_x
-
-        return int(x_new), int(y_new)
-
-    def on_touch_down(self, touch):
-        if touch.x < self.width / 2:
-            self.current_speed_x = - self.SPEED_X
-        else:
-            self.current_speed_x = self.SPEED_X
-
-    def on_touch_up(self, touch):
-        self.current_speed_x = 0.
 
     def update(self, dt):
         print(f"dt: {dt:.3f} - {1./60:.3f}")
