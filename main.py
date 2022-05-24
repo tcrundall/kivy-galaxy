@@ -12,6 +12,7 @@ from kivy.uix.widget import Widget
 from kivy.properties import Clock
 
 from itertools import chain
+import random
 
 
 class MainWidget(Widget):
@@ -24,13 +25,13 @@ class MainWidget(Widget):
     V_LINES_SPACING = 0.1       # percentage in screen width
     vertical_lines = []
 
-    H_NB_LINES = 20
+    H_NB_LINES = 8
     H_LINES_SPACING = 1. / (H_NB_LINES - 1)
     horizontal_lines = []
 
-    SPEED = 0.1
+    SPEED = 1
     current_offset_y = 0.
-    current_y_progress = 0
+    current_y_loop = 0
 
     SPEED_X = 15
     current_speed_x = 0
@@ -38,13 +39,16 @@ class MainWidget(Widget):
 
     FPS = 60.
 
+    NB_TILES = H_NB_LINES
     tiles = []
+    tiles_coordinates = []
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         self.init_vertical_lines()
         self.init_horizontal_lines()
+        self.generate_tiles_coordinates()
         self.init_tiles()
 
         if self.is_desktop():
@@ -62,6 +66,16 @@ class MainWidget(Widget):
             return True
         return False
 
+    def init_tiles(self):
+        with self.canvas:
+            Color(1, 1, 1)
+            for _ in self.tiles_coordinates:
+                self.tiles.append(Quad())
+    
+    def generate_tiles_coordinates(self):
+        for i in range(0, self.NB_TILES):
+            self.tiles_coordinates.append((0, i))
+
     def init_vertical_lines(self):
         with self.canvas:
             Color(1, 1, 1)
@@ -74,9 +88,31 @@ class MainWidget(Widget):
         x_diff = (index - 0.5) * spacing_x
         return central_line_x + x_diff + self.current_offset_x
 
+    def get_line_y_from_index(self, index):
+        spacing_y = self.H_LINES_SPACING * self.height
+        return index * spacing_y - self.current_offset_y
+
+    def get_tile_coordinates(self, ti_x, ti_y):
+        ti_y -= self.current_y_loop
+        x = self.get_line_x_from_index(ti_x)
+        y = self.get_line_y_from_index(ti_y)
+        return x, y
+
+    def update_tiles(self):
+        for tile, (x, y) in zip(self.tiles, self.tiles_coordinates):
+            # x1, y1, x2, y2, x3, y3, x4, y4
+            xmin, ymin = self.get_tile_coordinates(x, y)
+            xmax, ymax = self.get_tile_coordinates(x + 1, y + 1)
+            points = [
+                (xmin, ymin),
+                (xmin, ymax),
+                (xmax, ymax),
+                (xmax, ymin),
+            ]
+            tr_points = [list(self.transform(px, py)) for px, py in points]
+            tile.points = list(chain(*tr_points))
+
     def update_vertical_lines(self):
-        # -1, 0, 1, 2
-        # -2, -1, 0, 1, 2
         start_ix = -int((self.V_NB_LINES - 1) / 2)
         for i in range(start_ix, start_ix + self.V_NB_LINES):
             line_x = self.get_line_x_from_index(i)
@@ -104,33 +140,6 @@ class MainWidget(Widget):
                 x2, y2 = self.transform(xmax, line_y)
                 horizontal_line.points = [x1, y1, x2, y2]
 
-    def init_tiles(self):
-        with self.canvas:
-            Color(1, 1, 1)
-            for _ in range(4):
-                self.tiles.append(Quad())
-
-    def update_tiles(self):
-        tile_coords = [(0,0), (1,5), (2,7), (-2,2)]
-        for tile, (x, y) in zip(self.tiles, tile_coords):
-            # x1, y1, x2, y2, x3, y3, x4, y4
-            bl = (
-                self.get_line_x_from_index(x),
-                self.get_line_y_from_index(y, move=True),
-            )
-            tr = (
-                self.get_line_x_from_index(x+1),
-                self.get_line_y_from_index(y+1, move=True),
-            )
-            points = [
-                bl,
-                (bl[0], tr[1]),
-                tr,
-                (tr[0], bl[1]),
-            ]
-            tr_points = [list(self.transform(px, py)) for px, py in points]
-            tile.points = list(chain(*tr_points))
-
     def update(self, dt):
         time_factor = dt * self.FPS
         self.update_vertical_lines()
@@ -142,17 +151,15 @@ class MainWidget(Widget):
         spacing_y = self.H_LINES_SPACING * self.height
         if self.current_offset_y >= spacing_y:
             self.current_offset_y -= spacing_y
-            self.current_y_progress += 1
-            print(self.current_y_progress)
+            self.current_y_loop += 1
+            x, y = self.tiles_coordinates.pop(0)
+            step = random.randint(-1, 1)
+            new_x = self.tiles_coordinates[-1][0] + step
+            self.tiles_coordinates.append((new_x, y + self.NB_TILES))
+            print(self.current_y_loop)
         # self.current_offset_y %= spacing_y
 
         self.current_offset_x -= self.current_speed_x * time_factor
-
-    def get_line_y_from_index(self, index, move=False):
-        spacing_y = self.H_LINES_SPACING * self.height
-        if move:
-            index -= self.current_y_progress
-        return index * spacing_y - self.current_offset_y
 
 
 class GalaxyApp(App):
