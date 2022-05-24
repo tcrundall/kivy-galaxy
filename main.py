@@ -29,7 +29,7 @@ class MainWidget(Widget):
     H_LINES_SPACING = 1. / (H_NB_LINES - 1)
     horizontal_lines = []
 
-    SPEED = 1
+    SPEED = 5
     current_offset_y = 0.
     current_y_loop = 0
 
@@ -39,7 +39,7 @@ class MainWidget(Widget):
 
     FPS = 60.
 
-    NB_TILES = H_NB_LINES
+    NB_TILES = 20
     tiles = []
     tiles_coordinates = []
 
@@ -73,8 +73,41 @@ class MainWidget(Widget):
                 self.tiles.append(Quad())
     
     def generate_tiles_coordinates(self):
-        for i in range(0, self.NB_TILES):
-            self.tiles_coordinates.append((0, i))
+        last_x = 0
+        last_y = 0
+        # clean the coordinates that are out of screen
+        for tile_coords in self.tiles_coordinates[:]:
+            if tile_coords[1] <= self.current_y_loop:
+                self.tiles_coordinates.remove(tile_coords)
+        
+        if self.tiles_coordinates:
+            last_x, last_y = self.tiles_coordinates[-1]
+
+        print("foo1")
+        print(self.tiles_coordinates)
+        print(last_x, last_y)
+
+        while last_y < self.current_y_loop + self.NB_TILES:
+            last_y += 1
+            self.tiles_coordinates.append((last_x, last_y))
+        # for i in range(len(self.tiles_coordinates), self.NB_TILES):
+            # self.tiles_coordinates.append((last_x, last_y + 1))
+            path = random.randint(-1, 1)
+            if path == -1:
+                if last_x + path > -self.H_NB_LINES / 2:
+                    last_x += path
+                    self.tiles_coordinates.append((last_x, last_y))
+                    last_y += 1
+                    self.tiles_coordinates.append((last_x, last_y))
+            if path == 1:
+                if last_x + path < self.H_NB_LINES / 2 - 1:
+                    last_x += path
+                    self.tiles_coordinates.append((last_x, last_y))
+                    last_y += 1
+                    self.tiles_coordinates.append((last_x, last_y))
+
+        print("foo2")
+        print(self.tiles_coordinates)
 
     def init_vertical_lines(self):
         with self.canvas:
@@ -150,13 +183,15 @@ class MainWidget(Widget):
 
         spacing_y = self.H_LINES_SPACING * self.height
         if self.current_offset_y >= spacing_y:
+            self.generate_tiles_coordinates()
             self.current_offset_y -= spacing_y
             self.current_y_loop += 1
-            x, y = self.tiles_coordinates.pop(0)
-            step = random.randint(-1, 1)
-            new_x = self.tiles_coordinates[-1][0] + step
-            self.tiles_coordinates.append((new_x, y + self.NB_TILES))
-            print(self.current_y_loop)
+
+#             x, y = self.tiles_coordinates.pop(0)
+#             step = random.randint(-1, 1)
+#             new_x = self.tiles_coordinates[-1][0] + step
+#             self.tiles_coordinates.append((new_x, y + self.NB_TILES))
+            # print(self.current_y_loop)
         # self.current_offset_y %= spacing_y
 
         self.current_offset_x -= self.current_speed_x * time_factor
