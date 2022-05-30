@@ -22,7 +22,7 @@ class MainWidget(Widget):
     perspective_point_y = NumericProperty(0)
 
     V_NB_LINES = 8
-    V_LINES_SPACING = 0.2       # percentage in screen width
+    V_LINES_SPACING = 0.4       # percentage in screen width
     vertical_lines = []
 
     H_NB_LINES = 11 
@@ -49,6 +49,7 @@ class MainWidget(Widget):
     SHIP_HEIGHT = 0.035
     SHIP_BASE_Y = 0.04
     ship = None
+    ship_points = [(0, 0), (0, 0), (0, 0)]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -102,13 +103,11 @@ class MainWidget(Widget):
         last_y = 0
         # clean the coordinates that are out of screen
         for tile_coords in self.tiles_coordinates[:]:
-            if tile_coords[1] <= self.current_y_loop:
+            if tile_coords[1] < self.current_y_loop:
                 self.tiles_coordinates.remove(tile_coords)
         
         if self.tiles_coordinates:
             last_x, last_y = self.tiles_coordinates[-1]
-
-        print("foo1")
 
         while last_y < self.current_y_loop + self.NB_TILES:
             last_y += 1
@@ -125,8 +124,6 @@ class MainWidget(Widget):
                 self.tiles_coordinates.append((last_x, last_y))
                 last_y += 1
                 self.tiles_coordinates.append((last_x, last_y))
-
-        print("foo2")
 
     def init_vertical_lines(self):
         with self.canvas:
@@ -161,6 +158,12 @@ class MainWidget(Widget):
                 (xmax, ymax),
                 (xmax, ymin),
             ]
+
+            # tr_points = []
+            # for px, py in points:
+            #     tr_points.extend(self.transform(x, y))
+            # tile.points = tr_points
+
             tr_points = [list(self.transform(px, py)) for px, py in points]
             tile.points = list(chain(*tr_points))
 
@@ -202,11 +205,45 @@ class MainWidget(Widget):
         ship_half_width = self.SHIP_WIDTH * self.width / 2
         ship_height = self.SHIP_HEIGHT * self.height
 
-        x1, y1 = self.transform(self.center_x - ship_half_width, base_y)
-        x2, y2 = self.transform(self.center_x, base_y + ship_height)
-        x3, y3 = self.transform(self.center_x + ship_half_width, base_y)
+        self.ship_points = [
+            (self.center_x - ship_half_width, base_y),
+            (self.center_x, base_y + ship_height),
+            (self.center_x + ship_half_width, base_y),
+        ]
+        tr_points = []
+        for x, y in self.ship_points:
+            tr_points.extend(self.transform(x, y))
 
-        self.ship.points = [x1, y1, x2, y2, x3, y3]
+        self.ship.points = tr_points
+
+    def check_ship_collision_with_tile(self, ti_x, ti_y):
+        xmin, ymin = self.get_tile_coordinates(ti_x, ti_y)
+        xmax, ymax = self.get_tile_coordinates(ti_x + 1, ti_y + 1)
+
+        for x, y in self.ship_points:
+            if xmin <= x <= xmax and ymin <= y <= ymax:
+                return True
+
+        return False
+
+    def check_ship_collision(self):
+        # x1, y1, x2, y2, x3, y3 = self.ship.points
+
+        # one_point_on_track = False
+        # for x, y in [(x1, y1), (x2, y2), (x3, y3)]:
+        #     for tile, coords in zip(self.tiles, self.tiles_coordinates):
+        #         tx1, ty1, _, _, tx3, ty3, _, _ = tile.points
+        #         if coords[1] > self.current_y_loop + 2:
+        #             break
+        #         if tx1 <= x <= tx3 and ty1 <= y <= ty3:
+        #             one_point_on_track = True
+
+        for ti_x, ti_y in self.tiles_coordinates:
+            if ti_y > self.current_y_loop + 1:
+                return False
+            if self.check_ship_collision_with_tile(ti_x, ti_y):
+                return True
+        return False
 
     def update(self, dt):
         time_factor = dt * self.FPS
@@ -233,6 +270,11 @@ class MainWidget(Widget):
 
         speed_x = self.current_speed_x * self.width
         self.current_offset_x -= speed_x * time_factor
+
+        if not self.check_ship_collision():
+            print("GAME OVER!!!")
+        else:
+            print('-', end='')
 
 
 class GalaxyApp(App):
